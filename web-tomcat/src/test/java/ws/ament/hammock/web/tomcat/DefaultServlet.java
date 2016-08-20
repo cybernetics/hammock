@@ -27,14 +27,11 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
-@ApplicationScoped
 @WebServlet("/*")
 public class DefaultServlet extends HttpServlet {
-    @Inject
-    private MessageProvider messageProvider;
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        resp.getWriter().println(messageProvider.getMessage());
+        System.out.println("Boop");
     }
 }

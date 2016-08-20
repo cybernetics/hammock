@@ -20,6 +20,7 @@ package ws.ament.hammock.web.tomcat;
 
 import org.apache.catalina.Context;
 import org.apache.catalina.LifecycleException;
+import org.apache.catalina.Wrapper;
 import org.apache.catalina.core.StandardContext;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.tomcat.util.descriptor.web.ApplicationParameter;
@@ -31,6 +32,7 @@ import ws.ament.hammock.web.base.AbstractWebServer;
 import ws.ament.hammock.web.spi.WebServerConfiguration;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.inject.spi.CDI;
 import javax.inject.Inject;
 import javax.servlet.ServletContainerInitializer;
 import javax.servlet.ServletContext;
@@ -42,8 +44,9 @@ import java.util.Arrays;
 import java.util.Set;
 
 @ApplicationScoped
-public class TomcatWebServer extends AbstractWebServer{
+public class TomcatWebServer extends AbstractWebServer {
     private Tomcat tomcat;
+
     @Inject
     protected TomcatWebServer(WebServerConfiguration webServerConfiguration) {
         super(webServerConfiguration);
@@ -53,21 +56,21 @@ public class TomcatWebServer extends AbstractWebServer{
     public void start() {
         tomcat = new Tomcat();
         tomcat.setPort(getWebServerConfiguration().getWebserverPort());
-        File base = new File("./target");
+        File base = new File(getWebServerConfiguration().getFileDir());
+        if (!base.exists())
+        {
+            base.mkdirs();
+        }
+        tomcat.setBaseDir(getWebServerConfiguration().getFileDir());
         Context ctx = tomcat.addContext("/",base.getAbsolutePath());
-
-        ((StandardJarScanner) ctx.getJarScanner()).setScanAllDirectories(true);
-        StandardContext standardContext = (StandardContext)ctx;
-//        standardContext.setatt(WeldServletLifecycle.BEAN_MANAGER_ATTRIBUTE_NAME, container.getBeanManager());
-        standardContext.addApplicationListener(Listener.class.getName());
+        ctx.addApplicationListener(Listener.class.getName());
         getServletDescriptors().forEach(servletDescriptor -> {
-            Tomcat.addServlet(ctx, servletDescriptor.name(), servletDescriptor.servletClass().getName());
-            Arrays.stream(servletDescriptor.urlPatterns()).forEach(s -> ctx.addServletMapping(s, servletDescriptor.name()));
+            System.out.println("Adding servlet "+servletDescriptor.name());
+            Wrapper wrapper = Tomcat.addServlet(ctx, servletDescriptor.name(), servletDescriptor.servletClass().getName());
+            Arrays.stream(servletDescriptor.urlPatterns()).forEach(wrapper::addMapping);
         });
         try {
             tomcat.start();
-            Runnable r = () -> tomcat.getServer().await();
-            new Thread(r).start();
         } catch (LifecycleException e) {
             e.printStackTrace();
         }

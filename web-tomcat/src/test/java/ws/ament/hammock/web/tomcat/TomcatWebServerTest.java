@@ -18,34 +18,45 @@
 
 package ws.ament.hammock.web.tomcat;
 
+import org.apache.catalina.Context;
+import org.apache.catalina.Wrapper;
+import org.apache.catalina.core.StandardContext;
+import org.apache.catalina.startup.Tomcat;
 import org.apache.commons.io.IOUtils;
 import org.jboss.weld.environment.se.Weld;
 import org.jboss.weld.environment.se.WeldContainer;
+import org.jboss.weld.environment.servlet.Listener;
 import org.junit.Test;
-import ws.ament.hammock.core.config.ConfigurationBootstrap;
-import ws.ament.hammock.web.spi.ConfigurationProvider;
-import ws.ament.hammock.web.spi.ServletDescriptor;
 
-import javax.servlet.annotation.WebInitParam;
+import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Created by johnament on 7/2/16.
- */
 public class TomcatWebServerTest {
     @Test
     public void shouldBootWebServer() throws Exception {
         try(WeldContainer weldContainer = new Weld().disableDiscovery()
-                .beanClasses(TomcatWebServer.class, DefaultServlet.class, MessageProvider.class,
-                        ConfigurationProvider.class, ConfigurationBootstrap.class, TestServletProducer.class)
+                .beanClasses(DefaultServlet.class, MessageProvider.class)
                 .initialize()) {
-            TomcatWebServer tomcat = weldContainer.select(TomcatWebServer.class).get();
-            tomcat.addServlet(new ServletDescriptor("Default",new String[]{"/*"},new String[]{"/*"},1,new WebInitParam[]{}, true, DefaultServlet.class));
+            String baseDir = "target/webapp-runner";
+            Tomcat tomcat = new Tomcat();
+            int port = 8080;
+            tomcat.setPort(port);
+            File base = new File(baseDir);
+            if (!base.exists())
+            {
+                base.mkdirs();
+            }
+            tomcat.setBaseDir(baseDir);
+            Context ctx = tomcat.addContext("/",base.getAbsolutePath());
+            StandardContext standardContext = (StandardContext)ctx;
+            standardContext.addApplicationListener(Listener.class.getName());
+
+            Wrapper wrapper = Tomcat.addServlet(ctx,"RequestServlet",DefaultServlet.class.getName());
+            wrapper.addMapping("/*");
             tomcat.start();
-            Thread.sleep(10000);
             try(InputStream stream = new URL("http://localhost:8080/").openStream()) {
                 String data = IOUtils.toString(stream).trim();
                 assertThat(data).isEqualTo(MessageProvider.DATA);
